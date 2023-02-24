@@ -7,7 +7,7 @@ A hook-free API to use `react-query` with `re-frame`.
 ## Installation
 
 ```clojure
-{:deps {io.github.rads/rf-query {:git/sha "<SHA>"}}}
+{:deps {io.github.rads/rf-query {:git/tag "v0.0.1" :git/sha "2e0de0c"}}}
 ```
 
 ## Usage
