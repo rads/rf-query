@@ -19,7 +19,8 @@
     (get-in db [:query-state query-key])))
 
 (defn- use-query [config {:keys [query-key query-fn]}]
-  (let [query-opts #js{:queryKey query-key :queryFn query-fn}]
+  (let [query-opts #js{:queryKey (clj->js query-key)
+                       :queryFn query-fn}]
     ((:use-query-fn config) query-opts)))
 
 (defn with-queries [queries render-fn]
