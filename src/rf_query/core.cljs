@@ -29,22 +29,23 @@
                          (map (fn [{:keys [query-key] :as q}]
                                 [query-key q]))
                          (into {}))
-        wrapper (fn [props]
-                  (let [query-hooks (update-vals query-index #(use-query config %))
-                        rf-db-loaded (->> queries
-                                          (map #(deref (rf/subscribe [::query-state %])))
-                                          (every? some?))]
-                    (doseq [[query-key q] query-hooks]
-                      (useEffect
-                        (fn []
-                          (let [query-def (get query-index query-key)
-                                query-state {:status (keyword (.-status q))
-                                             :data (.-data q)
-                                             :error (.-error q)}]
-                            (rf/dispatch [::query-state-changed query-def query-state]))
-                          js/undefined)
-                        #js[(.-status q) (.-data q) (.-error q)]))
-                    (when rf-db-loaded
-                      [render-fn props])))]
+        hooks (fn [_]
+                (let [query-hooks (update-vals query-index #(use-query config %))]
+                  (doseq [[query-key q] query-hooks]
+                    (useEffect
+                      (fn []
+                        (let [query-def (get query-index query-key)
+                              query-state {:status (keyword (.-status q))
+                                           :data (.-data q)
+                                           :error (.-error q)}]
+                          (rf/dispatch [::query-state-changed query-def query-state]))
+                        js/undefined)
+                      #js[(.-status q) (.-data q) (.-error q)]))))]
     (fn [props]
-      [:f> wrapper props])))
+      [:<>
+       [:f> hooks]
+       (let [rf-db-loaded (->> queries
+                               (map #(deref (rf/subscribe [::query-state %])))
+                               (every? some?))]
+         (when rf-db-loaded
+           [render-fn props]))])))
