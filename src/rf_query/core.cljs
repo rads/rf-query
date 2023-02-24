@@ -25,17 +25,12 @@
 
 (defn with-queries [queries render-fn]
   (let [config @current-config
-        query-index (->> queries
-                         (map (fn [{:keys [query-key] :as q}]
-                                [query-key q]))
-                         (into {}))
         hooks (fn [_]
-                (let [query-hooks (update-vals query-index #(use-query config %))]
-                  (doseq [[query-key q] query-hooks]
+                (doseq [query-def queries]
+                  (let [q (use-query config query-def)]
                     (useEffect
                       (fn []
-                        (let [query-def (get query-index query-key)
-                              query-state {:status (keyword (.-status q))
+                        (let [query-state {:status (keyword (.-status q))
                                            :data (.-data q)
                                            :error (.-error q)}]
                           (rf/dispatch [::query-state-changed query-def query-state]))
