@@ -37,37 +37,38 @@ A hook-free API to use `react-query` with `re-frame`.
    :query-fn (fn [] (js/Promise.resolve (rand-int 100)))})
 ```
 
-3. Use `rq/subscribe` instead of `rf/subscribe` (regular subs still work):
+3. Use the `rq/with-queries` function to wrap your component. Access data with the `[::rq/query-state query]` subscription:
 
 ```clojure
-(ns rf-query.example
+(ns rf-query.example.main
   (:require [cljs.pprint :as pprint]
+            [re-frame.core :as rf]
             [reagent.dom :as rdom]
             [rf-query.core :as rq]
             [rf-query.example.queries :as queries]))
 
-(def container (js/document.getElementById "app"))
-
-(defn hello [_]
-  (let [counter @(rq/subscribe queries/counter)]
-    (case (:status counter)
-      :loading "Loading"
-      :error (str "Error: " (.-message (:error counter)))
-      :success (str "Count: " (:data counter)))
-    [:pre [:code (with-out-str (pprint/pprint counter))]]))
+(def hello
+  (rq/with-queries
+    [queries/counter]
+    (fn [_]
+      (let [query @(rf/subscribe [::rq/query-state queries/counter])
+            {:keys [status data error]} query]
+        [:div
+         [:div (case status
+                 :loading "Loading"
+                 :error (str "Error: " (.-message error))
+                 :success (str "Count: " data))]
+         [:pre [:code (with-out-str (pprint/pprint query))]]]))))
 
 (defn app []
   [queries/provider
-   [:f> hello]])
+   [hello]])
+
+(def container (js/document.getElementById "app"))
 
 (defn -main [& _]
   (rdom/render [app] container))
 ```
-
-## Caveats
-
-- The `rq/subscribe` function uses hooks internally which means it can only be called within a function component
-  - In practice this just means you need to render your components like `[:f> foo]` instead of `[foo]`
 
 ## Example
 

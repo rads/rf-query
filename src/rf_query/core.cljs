@@ -15,25 +15,35 @@
 
 (rf/reg-sub
   ::query-state
-  (fn [db [_ query-key]]
+  (fn [db [_ {:keys [query-key] :as _query-def}]]
     (get-in db [:query-state query-key])))
 
-(defn- use-query [config opts]
-  ((:use-query-fn config) (clj->js opts)))
+(defn- use-query [config {:keys [query-key query-fn]}]
+  (let [query-opts #js{:queryKey query-key :queryFn query-fn}]
+    ((:use-query-fn config) query-opts)))
 
-(defn subscribe [query]
-  (if-not (:query-key query)
-    (rf/subscribe query)
-    (let [{:keys [query-key query-fn]} query
-          config @current-config
-          query-opts {:queryKey query-key :queryFn query-fn}
-          q (use-query config query-opts)]
-      (useEffect
-        (fn []
-          (let [query-state {:status (keyword (.-status q))
-                             :data (.-data q)
-                             :error (.-error q)}]
-            (rf/dispatch [::query-state-changed query query-state]))
-          js/undefined)
-        #js[(.-status q) (.-data q) (.-error q)])
-      (rf/subscribe [::query-state query-key]))))
+(defn with-queries [queries render-fn]
+  (let [config @current-config
+        query-index (->> queries
+                         (map (fn [{:keys [query-key] :as q}]
+                                [query-key q]))
+                         (into {}))
+        wrapper (fn [props]
+                  (let [query-hooks (update-vals query-index #(use-query config %))
+                        rf-db-loaded (->> queries
+                                          (map #(deref (rf/subscribe [::query-state %])))
+                                          (every? some?))]
+                    (doseq [[query-key q] query-hooks]
+                      (useEffect
+                        (fn []
+                          (let [query-def (get query-index query-key)
+                                query-state {:status (keyword (.-status q))
+                                             :data (.-data q)
+                                             :error (.-error q)}]
+                            (rf/dispatch [::query-state-changed query-def query-state]))
+                          js/undefined)
+                        #js[(.-status q) (.-data q) (.-error q)]))
+                    (when rf-db-loaded
+                      [render-fn props])))]
+    (fn [props]
+      [:f> wrapper props])))
