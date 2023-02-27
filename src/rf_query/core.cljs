@@ -18,9 +18,11 @@
   (fn [db [_ {:keys [query-key] :as _query-def}]]
     (get-in db [:query-state query-key])))
 
-(defn- use-query [config {:keys [query-key query-fn]}]
+(defn- use-query [config {:keys [query-key query-fn initial-data stale-time]}]
   (let [query-opts #js{:queryKey (clj->js query-key)
-                       :queryFn query-fn}]
+                       :queryFn query-fn
+                       :initialData initial-data
+                       :staleTime stale-time}]
     ((:use-query-fn config) query-opts)))
 
 (defn with-queries [queries render-fn]
@@ -36,11 +38,8 @@
                           (rf/dispatch [::query-state-changed query-def query-state]))
                         js/undefined)
                       #js[(.-status q) (.-data q) (.-error q)]))))]
+
     (fn [props]
       [:<>
-       [:f> hooks]
-       (let [rf-db-loaded (->> queries
-                               (map #(deref (rf/subscribe [::query-state %])))
-                               (every? some?))]
-         (when rf-db-loaded
-           [render-fn props]))])))
+       [render-fn props]
+       [:f> hooks]])))
