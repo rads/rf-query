@@ -27,29 +27,32 @@
                        :staleTime stale-time}]
     ((:use-query-fn config) query-opts)))
 
-(defn with-queries [queries render-fn]
-  (let [config @current-config
-        hooks (fn [_]
-                (doseq [query-def queries]
-                  (let [q (use-query config query-def)]
-                    (useEffect
-                      (fn []
-                        (let [query-state {:status (keyword (.-status q))
-                                           :data (.-data q)
-                                           :error (.-error q)}]
-                          (rf/dispatch [::query-state-changed query-def query-state]))
-                        js/undefined)
-                      #js[(.-status q) (.-data q) (.-error q)]))))]
+(defn- query-hooks [config queries]
+  (doseq [query-def queries]
+    (let [q (use-query config query-def)]
+      (useEffect
+        (fn []
+          (let [query-state {:status (keyword (.-status q))
+                             :data (.-data q)
+                             :error (.-error q)}]
+            (rf/dispatch [::query-state-changed query-def query-state]))
+          js/undefined)
+        #js[(.-status q) (.-data q) (.-error q)]))))
 
+(defn with-queries [queries render-fn]
+  (let [config @current-config]
     (fn [props]
       [:<>
        [render-fn props]
-       [:f> hooks]])))
+       [:f> query-hooks config queries]])))
 
 (def ^:private mutation-listeners (atom {}))
 
 (defn- add-mutation-listener [id f]
   (swap! mutation-listeners assoc id f))
+
+(defn- remove-mutation-listener [id]
+  (swap! mutation-listeners dissoc id))
 
 (defn- mutate! [mutation]
   (doseq [[_ f] @mutation-listeners]
@@ -67,18 +70,19 @@
                           :onSuccess on-success}]
     ((:use-mutation-fn config) mutation-opts)))
 
+(defn- mutation-hooks [config mutations]
+  (let [m (->> mutations
+               (map (fn [mutation-def]
+                      [mutation-def (use-mutation config mutation-def)]))
+               (into {}))]
+    (useEffect
+      (fn []
+        (let [id (gensym)]
+          (add-mutation-listener id #(.mutate (get m %)))
+          #(remove-mutation-listener id)))
+      #js[])))
+
 (defn provider [{:keys [mutations]} & children]
-  (let [config @current-config
-        hooks (fn [_]
-                (let [m (->> mutations
-                             (map (fn [mutation-def]
-                                    [mutation-def (use-mutation config mutation-def)]))
-                             (into {}))]
-                  (useEffect
-                    (fn []
-                      (let [id (gensym)]
-                        (add-mutation-listener id #(.mutate (get m %))))
-                      js/undefined)
-                    #js[])))]
-    (into [:<> [:f> hooks]]
+  (let [config @current-config]
+    (into [:<> [:f> mutation-hooks config mutations]]
           children)))
