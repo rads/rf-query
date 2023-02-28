@@ -5,7 +5,9 @@
 (def current-config (atom nil))
 
 (defn set-config! [& {:as opts}]
-  (reset! current-config (select-keys opts [:use-query-fn])))
+  (let [new-config (select-keys opts [:use-query-fn
+                                      :use-mutation-fn])]
+    (reset! current-config new-config)))
 
 (rf/reg-event-db
   ::query-state-changed
@@ -43,3 +45,40 @@
       [:<>
        [render-fn props]
        [:f> hooks]])))
+
+(def ^:private mutation-listeners (atom {}))
+
+(defn- add-mutation-listener [id f]
+  (swap! mutation-listeners assoc id f))
+
+(defn- mutate! [mutation]
+  (doseq [[_ f] @mutation-listeners]
+    (f mutation)))
+
+(rf/reg-fx ::mutate mutate!)
+
+(rf/reg-event-fx
+  ::mutate
+  (fn [_ [_ mutation]]
+    {:fx [[::mutate mutation]]}))
+
+(defn- use-mutation [config {:keys [mutation-fn on-success]}]
+  (let [mutation-opts #js{:mutationFn mutation-fn
+                          :onSuccess on-success}]
+    ((:use-mutation-fn config) mutation-opts)))
+
+(defn provider [{:keys [mutations]} & children]
+  (let [config @current-config
+        hooks (fn [_]
+                (let [m (->> mutations
+                             (map (fn [mutation-def]
+                                    [mutation-def (use-mutation config mutation-def)]))
+                             (into {}))]
+                  (useEffect
+                    (fn []
+                      (let [id (gensym)]
+                        (add-mutation-listener id #(.mutate (get m %))))
+                      js/undefined)
+                    #js[])))]
+    (into [:<> [:f> hooks]]
+          children)))
