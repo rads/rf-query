@@ -17,16 +17,19 @@ io.github.rads/rf-query {:git/tag "v0.0.3" :git/sha "3ec323a"}
 ```clojure
 (ns rf-query.example.queries
   (:require [rf-query.core :as rq]
-            ["@tanstack/react-query" :refer [useQuery QueryClient
+            ["@tanstack/react-query" :refer [useQuery
+                                             useMutation
+                                             QueryClient
                                              QueryClientProvider]]))
 
 (def query-client (QueryClient.))
 
-(defn provider [& children]
-  (into [:> QueryClientProvider {:client query-client}]
-        children))
+(defn provider [props & children]
+  [:> QueryClientProvider {:client query-client}
+   (into [rq/provider props] children)])
 
-(rq/set-config! {:use-query-fn useQuery})
+(rq/set-config! {:use-query-fn useQuery
+                 :use-mutation-fn useMutation})
 ```
 
 2. Define your query as a map:
@@ -81,5 +84,4 @@ open http://localhost:8888
 
 ## Roadmap
 
-- Support `useMutation`
 - Support additional config options for `useQuery`

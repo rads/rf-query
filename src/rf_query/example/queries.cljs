@@ -9,12 +9,10 @@
 
 (rq/set-config! {:use-query-fn useQuery
                  :use-mutation-fn useMutation})
-(println @rq/current-config)
 
 (defn provider [props & children]
   [:> QueryClientProvider {:client query-client}
-   (into [rq/provider props]
-         children)])
+   (into [rq/provider props] children)])
 
 (def counter
   {:query-key ["counter"]
